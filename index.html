@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OmniCalc - Scientific & Standard Calculator</title>
+  
+  <!-- Google Fonts & Tailwind CDN -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          colors: {
+            calc: {
+              base: '#0f172a',
+              surface: '#1e293b',
+              accent: '#38bdf8',
+              operator: '#6366f1',
+              action: '#f43f5e',
+              secondary: '#334155'
+            }
+          },
+          boxShadow: {
+            'glow-cyan': '0 0 20px -3px rgba(56, 189, 248, 0.35)',
+            'glow-indigo': '0 0 20px -3px rgba(99, 102, 241, 0.4)',
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Custom scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.6);
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(100, 116, 139, 0.4);
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(148, 163, 184, 0.7);
+    }
+
+    /* Key press active spring ripple */
+    .btn-key {
+      transition: all 0.12s cubic-bezier(0.4, 0, 0.2, 1);
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+    }
+    .btn-key:active {
+      transform: scale(0.94);
+    }
+
+    /* Smooth backdrop blur */
+    .glass-panel {
+      background: rgba(30, 41, 59, 0.72);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+  </style>
+</head>
+
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center justify-center p-3 sm:p-6 font-sans selection:bg-sky-500 selection:text-white">
+
+  <!-- Notification Toast -->
+  <div id="toast" class="fixed top-5 z-50 transform -translate-y-16 opacity-0 transition-all duration-300 pointer-events-none px-4 py-2.5 rounded-xl bg-slate-800/90 border border-slate-700 text-sky-400 text-sm font-medium shadow-2xl flex items-center gap-2">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+    <span id="toastMsg">Copied!</span>
+  </div>
+
+  <main class="w-full max-w-5xl flex flex-col lg:flex-row gap-6 items-stretch justify-center">
+
+    <!-- Calculator Card -->
+    <div class="flex-1 glass-panel rounded-3xl p-5 sm:p-7 shadow-2xl flex flex-col justify-between max-w-xl mx-auto w-full">
+      
+      <!-- Top Bar: Logo, Angle Mode & Standard/Scientific Selector -->
+      <header class="flex items-center justify-between pb-4 border-b border-slate-700/60 mb-4 gap-2">
+        <div class="flex items-center gap-2.5">
+          <div class="h-9 w-9 rounded-xl bg-gradient-to-tr from-indigo-500 to-sky-400 flex items-center justify-center shadow-glow-cyan">
+            <span class="font-bold text-white text-base font-mono">fx</span>
+          </div>
+          <div>
+            <h1 class="text-base font-bold tracking-tight text-white leading-tight">OmniCalc</h1>
+            <p class="text-[11px] text-slate-400 font-medium">Standard & Scientific</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 bg-slate-900/80 p-1 rounded-xl border border-slate-800">
+          <button id="modeRadDeg" onclick="toggleRadDeg()" class="px-2.5 py-1 text-xs font-semibold rounded-lg text-sky-400 bg-sky-950/60 border border-sky-800/40 hover:bg-sky-900/60 transition-colors">
+            DEG
+          </button>
+          
+          <div class="h-4 w-px bg-slate-700"></div>
+
+          <button id="tabStandard" onclick="setMode('standard')" class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-indigo-600 text-white shadow-sm transition-all">
+            Basic
+          </button>
+          <button id="tabScientific" onclick="setMode('scientific')" class="px-2.5 py-1 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition-all">
+            Sci
+          </button>
+        </div>
+      </header>
+
+      <section class="bg-slate-900/90 rounded-2xl p-4 sm:p-5 mb-5 border border-slate-800 flex flex-col justify-end text-right min-h-[125px] overflow-hidden shadow-inner">
+        <!-- Sub-display / Expression History -->
+        <div id="subDisplay" class="font-mono text-sm sm:text-base text-slate-400 tracking-wide break-words min-h-[1.5rem] mb-1 overflow-x-auto"></div>
+        
+        <!-- Main Display / Current Input -->
+        <div class="relative w-full flex items-center justify-end">
+          <span id="mainDisplay" class="font-mono text-3xl sm:text-4xl font-semibold tracking-tight text-white overflow-x-auto whitespace-nowrap scroll-smooth">0</span>
+        </div>
+      </section>
+
+      <div id="keypad" class="flex flex-col gap-2.5">
+        
+        <!-- Scientific Row 1 (Collapsible/Toggleable) -->
+        <div id="sciRow1" class="grid grid-cols-5 gap-2 hidden">
+          <button onclick="handleSci('sin')" class="btn-key p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-sky-300 font-mono text-sm font-medium">sin</button>
+          <button onclick="handleSci('cos')" class="btn-key p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-sky-300 font-mono text-sm font-medium">cos</button>
+          <button onclick="handleSci('tan')" class="btn-key p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-sky-300 font-mono text-sm font-medium">tan</button>
+          <button onclick="handleSci('ln')" class="btn-key p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-sky-300 font-mono text-sm font-medium">ln</button>
+          <button onclick="handleSci('log')" class="btn-key p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-sky-300 font-mono text-sm font-medium">log</button>
+        </div>
+
+        <!-- Scientific Row 2 (Collapsible/Toggleable) -->
+        <div id="sciRow2" class="grid grid-cols-5 gap-2 hidden">
+          <button onclick="handleSci('pi')" class="btn-key p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-sky-300 font-mono text-sm font-medium">π</button>
+          <button onclick="handleSci('e')" class="btn-key p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-sky-300 font-mono text-sm font-medium">e</button>
+          <button onclick="handleSci('sqrt')" class="btn-key p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-sky-300 font-mono text-sm font-medium">√</button>
+          <button onclick="handleSci('pow')" class="btn-key p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-sky-300 font-mono text-sm font-medium">x^y</button>
+          <button onclick="handleSci('fact')" class="btn-key p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-sky-300 font-mono text-sm font-medium">n!</button>
+        </div>
+
+        <!-- Main Standard Grid -->
+        <div class="grid grid-cols-4 gap-2.5">
+          <!-- Row 1 -->
+          <button onclick="handleClearAll()" class="btn-key p-3 sm:p-3.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 font-semibold text-base border border-rose-500/30">AC</button>
+          <button onclick="handleBackspace()" class="btn-key p-3 sm:p-3.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-300 font-semibold text-base border border-slate-700/60">⌫</button>
+          <button onclick="handleInput('%')" class="btn-key p-3 sm:p-3.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-300 font-mono text-base border border-slate-700/60">%</button>
+          <button onclick="handleOperator('/')" class="btn-key p-3 sm:p-3.5 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 font-mono text-lg font-bold border border-indigo-500/40">÷</button>
+
+          <!-- Row 2 -->
+          <button onclick="handleInput('7')" class="btn-key p-3 sm:p-3.5 rounded-xl bg-slate-800/50 hover:bg-slate-700/70 text-white font-mono text-lg font-semibold border border-slate-700/30">7</button>
+          <button onclick="handleInput('8')" class="btn-key p-3 sm:p-3.5 rounded-xl bg-slate-800/50 hover:bg-slate-700/70 text-white font-mono text-lg font-semibold border border-slate-700/30">8</button>
+          <button onclick="handleInput('9')" class="btn-key p-3 sm:p-3.5 rounded-xl bg-slate-800/50 hover:bg-slate-700/70 text-white font-mono text-lg font-semibold border border-slate-700/30">9</button>
+          <button onclick="handleOperator('*')" class="btn-key p-3 sm:p-3.5 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 font-mono text-lg font-bold border border-indigo-500/40">×</button>
+
+          <!-- Row 3 -->
+          <button onclick="handleInput('4')" class="btn-key p-3 sm:p-3.5 rounded-xl bg-slate-800/50 hover:bg-slate-700/70 text-white font-mono text-lg font-semibold border border-slate-700/30">4</button>
+          <button onclick="handleInput('5')" class="btn-key p-3 sm:p-3.5 rounded-xl bg-slate-800/50 hover:bg-slate-700/70 text-white font-mono text-lg font-semibold border border-slate-700/30">5</button>
+          <button onclick="handleInput('6')" class="btn-key p-3 sm:p-3.5 rounded-xl bg-slate-800/50 hover:bg-slate-700/70 text-white font-mono text-lg font-semibold border border-slate-700/30">6</button>
+          <button onclick="handleOperator('-')" class="btn-key p-3 sm:p-3.5 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 font-mono text-lg font-bold border border-indigo-500/40">−</button>
+
+          <!-- Row 4 -->
+          <button onclick="handleInput('1')" class="btn-key p-3 sm:p-3.5 rounded-xl bg-slate-800/50 hover:bg-slate-700/70 text-white font-mono text-lg font-semibold border border-slate-700/30">1</button>
+          <button onclick="handleInput('2')" class="btn-key p-3 sm:p-3.5 rounded-xl bg-slate-800/50 hover:bg-slate-700/70 text-white font-mono text-lg font-semibold border border-slate-700/30">2</button>
+          <button onclick="handleInput('3')" class="btn-key p-3 sm:p-3.5 rounded-xl bg-slate-800/50 hover:bg-slate-700/70 text-white font-mono text-lg font-semibold border border-slate-700/30">3</button>
+          <button onclick="handleOperator('+')" class="btn-key p-3 sm:p-3.5 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 font-mono text-lg font-bold border border-indigo-500/40">+</button>
+
+          <!-- Row 5 -->
+          <button onclick="handleToggleSign()" class="btn-key p-3 sm:p-3.5 rounded-xl bg-slate-800/50 hover:bg-slate-700/70 text-white font-mono text-lg font-semibold border border-slate-700/30">±</button>
+          <button onclick="handleInput('0')" class="btn-key p-3 sm:p-3.5 rounded-xl bg-slate-800/50 hover:bg-slate-700/70 text-white font-mono text-lg font-semibold border border-slate-700/30">0</button>
+          <button onclick="handleInput('.')" class="btn-key p-3 sm:p-3.5 rounded-xl bg-slate-800/50 hover:bg-slate-700/70 text-white font-mono text-lg font-semibold border border-slate-700/30">.</button>
+          <button onclick="handleEvaluate()" class="btn-key p-3 sm:p-3.5 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-mono text-xl font-bold shadow-glow-indigo">=</button>
+        </div>
+      </div>
+    </div>
+
+    <aside class="w-full lg:w-80 glass-panel rounded-3xl p-5 sm:p-6 flex flex-col h-[400px] lg:h-auto max-w-xl mx-auto shadow-xl">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-700/60 mb-3">
+        <div class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+          <h2 class="text-sm font-bold text-white tracking-wide uppercase">History</h2>
+        </div>
+        <button onclick="clearHistory()" class="text-xs text-rose-400 hover:text-rose-300 font-medium transition-colors flex items-center gap-1">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+          Clear
+        </button>
+      </div>
+
+      <!-- History List -->
+      <div id="historyList" class="flex-1 overflow-y-auto space-y-2 pr-1 font-mono text-sm">
+        <div id="emptyHistoryNotice" class="h-full flex flex-col items-center justify-center text-slate-500 text-xs text-center py-10">
+          <svg class="w-8 h-8 mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+          No calculations yet
+        </div>
+      </div>
+      
+      <div class="pt-3 mt-auto border-t border-slate-800 text-[11px] text-slate-500 text-center">
+        Press <kbd class="px-1 py-0.5 bg-slate-800 border border-slate-700 rounded text-slate-400">Enter</kbd> to calculate, <kbd class="px-1 py-0.5 bg-slate-800 border border-slate-700 rounded text-slate-400">Esc</kbd> to clear
+      </div>
+    </aside>
+
+  </main>
+
+  <script>
+    // State variables
+    let currentExpression = '';
+    let isEvaluated = false;
+    let angleMode = 'DEG'; // 'DEG' or 'RAD'
+    let history = [];
+
+    // DOM Elements
+    const mainDisplay = document.getElementById('mainDisplay');
+    const subDisplay = document.getElementById('subDisplay');
+    const historyList = document.getElementById('historyList');
+    const emptyNotice = document.getElementById('emptyHistoryNotice');
+    const toast = document.getElementById('toast');
+    const toastMsg = document.getElementById('toastMsg');
+    const sciRow1 = document.getElementById('sciRow1');
+    const sciRow2 = document.getElementById('sciRow2');
+    const tabStandard = document.getElementById('tabStandard');
+    const tabScientific = document.getElementById('tabScientific');
+    const modeRadDeg = document.getElementById('modeRadDeg');
+
+    // Load persisted history from localStorage safely
+    try {
+      const savedHistory = localStorage.getItem('omniCalc_history');
+      if (savedHistory) {
+        history = JSON.parse(savedHistory);
+        renderHistory();
+      }
+    } catch (e) {
+      console.warn("Storage access restricted or unavailable:", e);
+    }
+
+    function updateDisplay() {
+      if (!currentExpression) {
+        mainDisplay.textContent = '0';
+      } else {
+        // Render friendly operator symbols
+        const formatted = currentExpression
+          .replace(/\*/g, ' × ')
+          .replace(/\//g, ' ÷ ')
+          .replace(/\+/g, ' + ')
+          .replace(/\-/g, ' − ');
+        mainDisplay.textContent = formatted;
+      }
+      mainDisplay.scrollLeft = mainDisplay.scrollWidth;
+    }
+
+    function showToast(message) {
+      toastMsg.textContent = message;
+      toast.classList.remove('opacity-0', '-translate-y-16');
+      toast.classList.add('opacity-100', 'translate-y-0');
+      setTimeout(() => {
+        toast.classList.remove('opacity-100', 'translate-y-0');
+        toast.classList.add('opacity-0', '-translate-y-16');
+      }, 2000);
+    }
+
+    function setMode(mode) {
+      if (mode === 'scientific') {
+        sciRow1.classList.remove('hidden');
+        sciRow2.classList.remove('hidden');
+        tabScientific.className = "px-2.5 py-1 text-xs font-semibold rounded-lg bg-indigo-600 text-white shadow-sm transition-all";
+        tabStandard.className = "px-2.5 py-1 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition-all";
+      } else {
+        sciRow1.classList.add('hidden');
+        sciRow2.classList.add('hidden');
+        tabStandard.className = "px-2.5 py-1 text-xs font-semibold rounded-lg bg-indigo-600 text-white shadow-sm transition-all";
+        tabScientific.className = "px-2.5 py-1 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition-all";
+      }
+    }
+
+    function toggleRadDeg() {
+      angleMode = angleMode === 'DEG' ? 'RAD' : 'DEG';
+      modeRadDeg.textContent = angleMode;
+      showToast(`Angle unit: ${angleMode}`);
+    }
+
+    function handleInput(char) {
+      if (isEvaluated && /[0-9.]/.test(char)) {
+        currentExpression = '';
+      }
+      isEvaluated = false;
+
+      // Handle duplicate decimal points
+      if (char === '.') {
+        const segments = currentExpression.split(/[\+\-\*\/]/);
+        const lastSegment = segments[segments.length - 1];
+        if (lastSegment.includes('.')) return;
+        if (lastSegment === '') char = '0.';
+      }
+
+      currentExpression += char;
+      updateDisplay();
+    }
+
+    function handleOperator(op) {
+      if (!currentExpression && op === '-') {
+        currentExpression = '-';
+        updateDisplay();
+        return;
+      }
+      if (!currentExpression) return;
+
+      const lastChar = currentExpression.slice(-1);
+      if (['+', '-', '*', '/'].includes(lastChar)) {
+        currentExpression = currentExpression.slice(0, -1) + op;
+      } else {
+        currentExpression += op;
+      }
+      isEvaluated = false;
+      updateDisplay();
+    }
+
+    function handleBackspace() {
+      if (isEvaluated) {
+        currentExpression = '';
+        isEvaluated = false;
+      } else {
+        currentExpression = currentExpression.slice(0, -1);
+      }
+      updateDisplay();
+    }
+
+    function handleClearAll() {
+      currentExpression = '';
+      subDisplay.textContent = '';
+      isEvaluated = false;
+      updateDisplay();
+    }
+
+    function handleToggleSign() {
+      if (!currentExpression) return;
+      try {
+        if (/^-?\d+(\.\d+)?$/.test(currentExpression)) {
+          currentExpression = (parseFloat(currentExpression) * -1).toString();
+          updateDisplay();
+        }
+      } catch (err) {
+        // Ignore if complex
+      }
+    }
+
+    function factorial(n) {
+      if (n < 0) return NaN;
+      if (n === 0 || n === 1) return 1;
+      let res = 1;
+      for (let i = 2; i <= Math.min(n, 170); i++) res *= i;
+      return res;
+    }
+
+    function handleSci(func) {
+      let val = parseFloat(currentExpression);
+      if (func === 'pi') {
+        currentExpression = isEvaluated ? String(Math.PI) : currentExpression + Math.PI.toFixed(6);
+        isEvaluated = false;
+        updateDisplay();
+        return;
+      }
+      if (func === 'e') {
+        currentExpression = isEvaluated ? String(Math.E) : currentExpression + Math.E.toFixed(6);
+        isEvaluated = false;
+        updateDisplay();
+        return;
+      }
+      if (func === 'pow') {
+        if (currentExpression && !/[\+\-\*\/]/.test(currentExpression.slice(-1))) {
+          currentExpression += '**';
+          updateDisplay();
+        }
+        return;
+      }
+
+      if (isNaN(val)) return;
+
+      let result;
+      switch (func) {
+        case 'sin':
+          const radSin = angleMode === 'DEG' ? (val * Math.PI) / 180 : val;
+          result = Math.sin(radSin);
+          break;
+        case 'cos':
+          const radCos = angleMode === 'DEG' ? (val * Math.PI) / 180 : val;
+          result = Math.cos(radCos);
+          break;
+        case 'tan':
+          const radTan = angleMode === 'DEG' ? (val * Math.PI) / 180 : val;
+          result = Math.tan(radTan);
+          break;
+        case 'ln':
+          result = Math.log(val);
+          break;
+        case 'log':
+          result = Math.log10(val);
+          break;
+        case 'sqrt':
+          result = Math.sqrt(val);
+          break;
+        case 'fact':
+          result = factorial(Math.floor(val));
+          break;
+      }
+
+      if (result !== undefined) {
+        const cleanedResult = Number(result.toFixed(10)).toString();
+        subDisplay.textContent = `${func}(${val}) =`;
+        currentExpression = cleanedResult;
+        isEvaluated = true;
+        updateDisplay();
+        addToHistory(`${func}(${val})`, cleanedResult);
+      }
+    }
+
+    function handleEvaluate() {
+      if (!currentExpression) return;
+      const cleanExpr = currentExpression.replace(/%/g, '/100');
+
+      try {
+        // Safe evaluation pattern using Function with Math sandbox
+        const evalFn = new Function('Math', `return (${cleanExpr})`);
+        const rawResult = evalFn(Math);
+
+        if (!isFinite(rawResult) || isNaN(rawResult)) {
+          throw new Error('Math Error');
+        }
+
+        const formattedResult = Number(rawResult.toFixed(10)).toString();
+        subDisplay.textContent = `${currentExpression} =`;
+        addToHistory(currentExpression, formattedResult);
+        currentExpression = formattedResult;
+        isEvaluated = true;
+        updateDisplay();
+      } catch (err) {
+        subDisplay.textContent = 'Malformed Expression';
+        mainDisplay.textContent = 'Error';
+        setTimeout(() => {
+          updateDisplay();
+        }, 1200);
+      }
+    }
+
+    function addToHistory(expr, res) {
+      history.unshift({ expr, res, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) });
+      if (history.length > 30) history.pop();
+      try {
+        localStorage.setItem('omniCalc_history', JSON.stringify(history));
+      } catch (e) {}
+      renderHistory();
+    }
+
+    function clearHistory() {
+      history = [];
+      try {
+        localStorage.removeItem('omniCalc_history');
+      } catch (e) {}
+      renderHistory();
+      showToast('History cleared');
+    }
+
+    function recallHistory(val) {
+      currentExpression = val;
+      isEvaluated = false;
+      updateDisplay();
+      showToast(`Recalled: ${val}`);
+    }
+
+    function copyToClipboard(text) {
+      const tempInput = document.createElement('input');
+      tempInput.value = text;
+      document.body.appendChild(tempInput);
+      tempInput.select();
+      document.execCommand('copy');
+      document.body.removeChild(tempInput);
+      showToast(`Copied ${text}`);
+    }
+
+    function renderHistory() {
+      if (history.length === 0) {
+        emptyNotice.classList.remove('hidden');
+        historyList.innerHTML = '';
+        historyList.appendChild(emptyNotice);
+        return;
+      }
+      emptyNotice.classList.add('hidden');
+      historyList.innerHTML = '';
+
+      history.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'group p-3 rounded-xl bg-slate-900/60 hover:bg-slate-800/80 border border-slate-800/80 transition-all flex flex-col gap-1 cursor-pointer';
+        card.innerHTML = `
+          <div class="flex items-center justify-between text-xs text-slate-400">
+            <span class="truncate max-w-[140px]">${item.expr}</span>
+            <span class="text-[10px] text-slate-500">${item.time}</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-sky-300 font-bold text-base truncate">${item.res}</span>
+            <div class="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button title="Recall result" onclick="event.stopPropagation(); recallHistory('${item.res}')" class="p-1 rounded hover:bg-slate-700 text-slate-300 hover:text-white">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+              </button>
+              <button title="Copy result" onclick="event.stopPropagation(); copyToClipboard('${item.res}')" class="p-1 rounded hover:bg-slate-700 text-slate-300 hover:text-white">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+              </button>
+            </div>
+          </div>
+        `;
+        card.onclick = () => recallHistory(item.res);
+        historyList.appendChild(card);
+      });
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (['0','1','2','3','4','5','6','7','8','9','.'].includes(e.key)) {
+        handleInput(e.key);
+      } else if (['+','-','*','/','%'].includes(e.key)) {
+        handleOperator(e.key);
+      } else if (e.key === 'Enter' || e.key === '=') {
+        e.preventDefault();
+        handleEvaluate();
+      } else if (e.key === 'Backspace') {
+        handleBackspace();
+      } else if (e.key === 'Escape') {
+        handleClearAll();
+      }
+    });
+
+    // Initial state render
+    updateDisplay();
+  </script>
+</body>
+</html>
